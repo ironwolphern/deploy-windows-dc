@@ -1,0 +1,73 @@
+---
+- name: Deploy and Configure Active Directory
+  hosts: ad_servers
+  gather_facts: true
+  vars_prompt:
+    - name: vm_name
+      prompt: "Enter the name of the VM: "
+      private: false
+
+    - name: domain_name
+      prompt: "Enter the domain name: "
+      private: false
+
+    - name: cidr_network_address
+      prompt: "Enter the CIDR network address: "
+      private: false
+
+    - name: admin_username
+      prompt: "Enter the administrator username: "
+      private: false
+
+    - name: admin_password
+      prompt: "Enter the administrator password: "
+      private: true
+
+  tasks:
+    - name: Change name of server
+      ansible.windows.win_hostname:
+        name: "{{ vm_name }}"
+      register: hostname_change
+
+    - name: Reboot after hostname change
+      ansible.windows.win_reboot:
+      when: hostname_change.reboot_required
+
+    - name: Install Active Directory Domain Services
+      ansible.windows.win_feature:
+        name: AD-Domain-Services
+        state: present
+        include_management_tools: true
+      when: inventory_hostname == groups['ad_servers'][0]
+
+    - name: Promote server to domain controller
+      ansible.windows.win_domain:
+        dns_domain_name: "{{ domain_name }}"
+        domain_netbios_name: "{{ domain_name.split('.')[0] | upper }}"
+        safe_mode_password: "{{ admin_password }}"
+        create_dns_delegation: false
+        install_dns: true
+        domain_mode: WinThreshold
+        forest_mode: WinThreshold
+        sysvol_path: C:\Windows\SYSVOL
+        database_path: C:\Windows\NTDS
+        log_path: C:\Windows\NTDS
+      register: dc_promotion
+      when: inventory_hostname == groups['ad_servers'][0]
+
+    - name: Reboot after promotion
+      ansible.windows.win_reboot:
+      when: dc_promotion.reboot_required
+
+    - name: Add Reverse DNZ Zone Primary
+      ansible.windows.win_powershell:
+        script: |
+          Add-DnsServerPrimaryZone -NetworkID "{{ cidr_network_address }}" -ReplicationScope "Forest"
+
+    - name: Add PTR Record for Domain controller
+      community.windows.win_dns_record:
+        name: "{{ ansible_ip_addresses[0].split('.')[3] }}"
+        zone: "{{ cidr_network_address.split('/')[0].split('.')[0:3] | reverse | join('.') }}.in-addr.arpa"
+        type: PTR
+        value: "{{ vm_name }}.{{ domain_name }}."
+        state: present
