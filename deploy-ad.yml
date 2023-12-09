@@ -3,14 +3,17 @@
   hosts: ad_servers
   gather_facts: true
   vars_prompt:
+    # Example: demo
     - name: vm_name
       prompt: "Enter the name of the VM: "
       private: false
 
+      # Example: example.local
     - name: domain_name
       prompt: "Enter the domain name: "
       private: false
 
+      # Example: 10.1.0.0/24
     - name: cidr_network_address
       prompt: "Enter the CIDR network address: "
       private: false
