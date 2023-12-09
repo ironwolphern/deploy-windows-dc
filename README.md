@@ -32,7 +32,7 @@ asks for the following parameters to enter:
 ---------------
 
 ```bash
-ansible-playbook -i inventories/inv.esx.vmware.yml deploy-windows-dc.yml
+ansible-playbook -i inventories/inv.esx.vmware.yml deploy-ad.yml
 ```
 
 *License*
